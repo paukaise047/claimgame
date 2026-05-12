@@ -12,10 +12,12 @@ const PARTIES = {
 } as const;
 type PartyId = keyof typeof PARTIES;
 
-// ---------- Quotes ----------
-// NOTE: Paraphrased summaries of documented 2025 Bundestagswahl program positions.
-// Before any real launch: replace `text` with verbatim wording from the official
-// Wahlprogramm PDF and fill in `source.page`. The structure is ready for that swap.
+type Mode = "quotes" | "politicians";
+const MODE_LABEL: Record<Mode, string> = { quotes: "Zitate", politicians: "Politiker" };
+
+// ---------- Quote data ----------
+// Paraphrased summaries of documented 2025 Bundestagswahl program positions.
+// Replace `text` with verbatim wording + `source.page` before launch.
 type Quote = {
   id: string;
   text: string;
@@ -88,9 +90,86 @@ const QUOTES: Quote[] = [
     source: { doc: "Wahlprogramm 2025", page: "S. ?" } },
 ];
 
-// ---------- Daily selection (same for everyone, deterministic) ----------
+// ---------- Politician data ----------
+// `imageUrl` left undefined intentionally. Drop in verified Wikimedia Commons
+// thumbnail URLs (e.g. https://commons.wikimedia.org/wiki/Special:FilePath/<File>?width=400)
+// after checking each photo's license. Until then, the Avatar component falls
+// back to a neutral initials tile so nothing breaks during the demo.
+// `knownFor` describes documented political role/profile — not a fabricated quote.
+type Politician = {
+  id: string;
+  name: string;
+  party: PartyId;
+  role: string;
+  knownFor: string;
+  imageUrl?: string;
+};
+
+// Image URLs are de.wikipedia.org REST API thumbnails (upload.wikimedia.org CDN).
+// Each is the infobox photo from the politician's German Wikipedia page; licenses
+// are CC-BY-SA / public domain via Wikimedia Commons. Verify each before launch.
+const POLITICIANS: Politician[] = [
+  { id: "p01", name: "Carsten Linnemann", party: "CDU",
+    role: "CDU-Generalsekretär, MdB",
+    knownFor: "Wirtschaftspolitischer Hardliner, treibende Stimme bei Bürgergeld-Verschärfung.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/2025-02-23_Bundestagswahl_%E2%80%93_Wahlabend_CDU_by_Sandro_Halank%E2%80%93052.jpg/330px-2025-02-23_Bundestagswahl_%E2%80%93_Wahlabend_CDU_by_Sandro_Halank%E2%80%93052.jpg" },
+  { id: "p02", name: "Thorsten Frei", party: "CDU",
+    role: "Erster Parlamentarischer Geschäftsführer der Union",
+    knownFor: "Profilierte sich mit Vorstoß für einen Migrations-Mechanismus mit jährlicher Obergrenze.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Thorsten_Frei_2023_%28cropped%29.jpg/330px-Thorsten_Frei_2023_%28cropped%29.jpg" },
+  { id: "p03", name: "Saskia Esken", party: "SPD",
+    role: "SPD-Bundesvorsitzende",
+    knownFor: "Verteidigt linken Parteiflügel; Schwerpunkte Digitalisierung und Bildung.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/2025-05-05_Unterzeichnung_des_Koalitionsvertrages_der_21._Wahlperiode_des_Bundestages_by_Sandro_Halank%E2%80%93032.jpg/330px-2025-05-05_Unterzeichnung_des_Koalitionsvertrages_der_21._Wahlperiode_des_Bundestages_by_Sandro_Halank%E2%80%93032.jpg" },
+  { id: "p04", name: "Rolf Mützenich", party: "SPD",
+    role: "Vorsitzender der SPD-Bundestagsfraktion",
+    knownFor: "Skeptisch gegenüber Waffenlieferungen, Befürworter einer diplomatischen Linie.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Rolf_M%C3%BCtzenich_2023.jpg/330px-Rolf_M%C3%BCtzenich_2023.jpg" },
+  { id: "p05", name: "Britta Haßelmann", party: "GRUENE",
+    role: "Fraktionsvorsitzende Bündnis 90/Die Grünen",
+    knownFor: "Erfahrene Parlamentarierin, Stimme für Klimainvestitionen und Demokratiestärkung.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Maischberger_-_2025-11-04-5281.jpg/330px-Maischberger_-_2025-11-04-5281.jpg" },
+  { id: "p06", name: "Omid Nouripour", party: "GRUENE",
+    role: "Außenpolitischer Sprecher, ehem. Parteivorsitzender",
+    knownFor: "Außenpolitik-Experte mit Fokus auf Iran, transatlantische Beziehungen, Ukraine-Unterstützung.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Omid_Nouripour_-_1_%28cropped%29.jpg/330px-Omid_Nouripour_-_1_%28cropped%29.jpg" },
+  { id: "p07", name: "Bettina Stark-Watzinger", party: "FDP",
+    role: "Ehem. Bundesministerin für Bildung und Forschung",
+    knownFor: "Liberale Bildungspolitik, BAföG-Reform; öffentliche Debatte um Förderaffäre.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Bettina_Stark-Watzinger_%282024%29.jpg/330px-Bettina_Stark-Watzinger_%282024%29.jpg" },
+  { id: "p08", name: "Konstantin Kuhle", party: "FDP",
+    role: "Stellv. Fraktionsvorsitzender FDP, Innen- und Rechtspolitik",
+    knownFor: "Liberale Stimme bei Bürgerrechten, Sicherheitsgesetzen und Demokratiefragen.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/2020-02-14_Konstantin_Kuhle_%28KPFC%29_01.jpg/330px-2020-02-14_Konstantin_Kuhle_%28KPFC%29_01.jpg" },
+  { id: "p09", name: "Heidi Reichinnek", party: "LINKE",
+    role: "Co-Fraktionsvorsitzende Die Linke",
+    knownFor: "Wurde durch virale Bundestagsrede gegen Rechts bundesweit bekannt.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/2025-01-18_Au%C3%9Ferordentlicher_Bundesparteitag_Die_Linke_2025_in_Berlin_by_Sandro_Halank%E2%80%93197.jpg/330px-2025-01-18_Au%C3%9Ferordentlicher_Bundesparteitag_Die_Linke_2025_in_Berlin_by_Sandro_Halank%E2%80%93197.jpg" },
+  { id: "p10", name: "Sören Pellmann", party: "LINKE",
+    role: "Direkt gewählter MdB Leipzig II",
+    knownFor: "Ostdeutsche Stimme der Linken, Schwerpunkt Soziales und Inklusion.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/2025-01-18_Au%C3%9Ferordentlicher_Bundesparteitag_Die_Linke_2025_in_Berlin_by_Sandro_Halank%E2%80%93027.jpg/330px-2025-01-18_Au%C3%9Ferordentlicher_Bundesparteitag_Die_Linke_2025_in_Berlin_by_Sandro_Halank%E2%80%93027.jpg" },
+  { id: "p11", name: "Bernd Baumann", party: "AFD",
+    role: "Erster Parlamentarischer Geschäftsführer AfD-Fraktion",
+    knownFor: "Profilierter Geschäftsordnungs-Stratege der Fraktion; harte Migrationslinie.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Bernd_Baumann-8845.jpg/330px-Bernd_Baumann-8845.jpg" },
+  { id: "p12", name: "Stephan Brandner", party: "AFD",
+    role: "Stellv. Bundessprecher AfD, MdB",
+    knownFor: "Polarisierende Auftritte im Bundestag und in Talkshows, Rechtspolitik.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Stephan_Brandner_%282017%29.jpg/330px-Stephan_Brandner_%282017%29.jpg" },
+  { id: "p13", name: "Sahra Wagenknecht", party: "BSW",
+    role: "Vorsitzende des Bündnis Sahra Wagenknecht",
+    knownFor: "Gründerin des BSW; wirtschaftlich links, kulturell konservativ, friedenspolitisch.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/2025-04-29-Sahra_Wagenknecht-Maischberger-3041.jpg/330px-2025-04-29-Sahra_Wagenknecht-Maischberger-3041.jpg" },
+  { id: "p14", name: "Amira Mohamed Ali", party: "BSW",
+    role: "Co-Vorsitzende BSW",
+    knownFor: "Ehem. Linken-Fraktionsvorsitzende, jetzt Mitgründerin und Co-Spitze des BSW.",
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Hart_aber_fair_2024-08-05-0454.jpg/330px-Hart_aber_fair_2024-08-05-0454.jpg" },
+];
+
+// ---------- Daily helpers (mode-aware) ----------
 const DAILY_LENGTH = 5;
-const LAUNCH_DATE = "2025-01-01"; // puzzle #1 reference
+const LAUNCH_DATE = "2025-01-01";
 
 function todayKey(d = new Date()) {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
@@ -101,7 +180,6 @@ function puzzleNumber(dateStr: string) {
   const b = new Date(dateStr   + "T00:00:00").getTime();
   return Math.max(1, Math.floor((b - a) / 86400000) + 1);
 }
-// xorshift seeded by date so today's puzzle is fixed worldwide
 function seededShuffle<T>(arr: T[], seedStr: string): T[] {
   let h = 2166136261;
   for (let i = 0; i < seedStr.length; i++) { h ^= seedStr.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -111,36 +189,40 @@ function seededShuffle<T>(arr: T[], seedStr: string): T[] {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
-function pickDaily(dateStr: string): Quote[] {
-  return seededShuffle(QUOTES, "parteicheck-" + dateStr).slice(0, DAILY_LENGTH);
+function pickDailyQuotes(dateStr: string): Quote[] {
+  return seededShuffle(QUOTES, "parteicheck-quotes-" + dateStr).slice(0, DAILY_LENGTH);
+}
+function pickDailyPoliticians(dateStr: string): Politician[] {
+  return seededShuffle(POLITICIANS, "parteicheck-politicians-" + dateStr).slice(0, DAILY_LENGTH);
 }
 
-// ---------- Storage ----------
+// ---------- Storage (mode-aware) ----------
 type DailyState = { date: string; guesses: PartyId[]; finished: boolean };
 type Stats = { played: number; wins: number; correct: number; total: number; streak: number; maxStreak: number; lastDate: string | null };
-const LS_DAILY = "parteicheck.daily.v1";
-const LS_STATS = "parteicheck.stats.v1";
-const LS_NAME  = "parteicheck.name.v1";
-const LS_BOARD = "parteicheck.board.v1";
+type BoardEntry = { name: string; score: number; date: string; puzzle: number };
 
-function loadDaily(date: string): DailyState {
+const LS_NAME = "parteicheck.name.v1";
+const dailyKey = (m: Mode) => `parteicheck.daily.${m}.v1`;
+const statsKey = (m: Mode) => `parteicheck.stats.${m}.v1`;
+const boardKey = (m: Mode) => `parteicheck.board.${m}.v1`;
+
+function loadDaily(mode: Mode, date: string): DailyState {
   try {
-    const raw = localStorage.getItem(LS_DAILY);
+    const raw = localStorage.getItem(dailyKey(mode));
     if (raw) { const p = JSON.parse(raw) as DailyState; if (p.date === date) return p; }
   } catch {}
   return { date, guesses: [], finished: false };
 }
-function saveDaily(s: DailyState) { try { localStorage.setItem(LS_DAILY, JSON.stringify(s)); } catch {} }
+function saveDaily(mode: Mode, s: DailyState) { try { localStorage.setItem(dailyKey(mode), JSON.stringify(s)); } catch {} }
 
 const defaultStats: Stats = { played: 0, wins: 0, correct: 0, total: 0, streak: 0, maxStreak: 0, lastDate: null };
-function loadStats(): Stats { try { const r = localStorage.getItem(LS_STATS); return r ? { ...defaultStats, ...JSON.parse(r) } : defaultStats; } catch { return defaultStats; } }
-function saveStats(s: Stats) { try { localStorage.setItem(LS_STATS, JSON.stringify(s)); } catch {} }
+function loadStats(mode: Mode): Stats { try { const r = localStorage.getItem(statsKey(mode)); return r ? { ...defaultStats, ...JSON.parse(r) } : defaultStats; } catch { return defaultStats; } }
+function saveStats(mode: Mode, s: Stats) { try { localStorage.setItem(statsKey(mode), JSON.stringify(s)); } catch {} }
 
-type BoardEntry = { name: string; score: number; date: string; puzzle: number };
-function loadBoard(): BoardEntry[] { try { return JSON.parse(localStorage.getItem(LS_BOARD) || "[]"); } catch { return []; } }
-function saveBoard(b: BoardEntry[]) { try { localStorage.setItem(LS_BOARD, JSON.stringify(b)); } catch {} }
+function loadBoard(mode: Mode): BoardEntry[] { try { return JSON.parse(localStorage.getItem(boardKey(mode)) || "[]"); } catch { return []; } }
+function saveBoard(mode: Mode, b: BoardEntry[]) { try { localStorage.setItem(boardKey(mode), JSON.stringify(b)); } catch {} }
 
-// ---------- Countdown to next puzzle ----------
+// ---------- Countdown ----------
 function useCountdown() {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
@@ -150,62 +232,108 @@ function useCountdown() {
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
+// ---------- Avatar ----------
+function Avatar({ politician, size = 220, hideName = true }: { politician: Politician; size?: number; hideName?: boolean }) {
+  const [errored, setErrored] = useState(false);
+  const initials = politician.name.split(" ").map(s => s[0]).join("").slice(0, 2).toUpperCase();
+  // Neutral palette so the avatar never leaks the party.
+  const bg = "#1a1a1a";
+  const fg = "#F5F1E8";
+  if (politician.imageUrl && !errored) {
+    return (
+      <img
+        src={politician.imageUrl}
+        alt={hideName ? "Politiker:in" : politician.name}
+        onError={() => setErrored(true)}
+        loading="lazy"
+        style={{ width: size, height: size, objectFit: "cover", objectPosition: "center top",
+                 display: "block", border: "2px solid #0A0A0A" }}
+      />
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size, background: bg, color: fg,
+      border: "2px solid #0A0A0A", display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "'Fraunces', Georgia, serif", fontSize: size * 0.32, fontWeight: 900,
+      letterSpacing: "0.05em",
+      position: "relative",
+    }}>
+      {hideName ? "?" : initials}
+      <div style={{
+        position: "absolute", bottom: 6, right: 8,
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+        textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.6,
+      }}>
+        Foto folgt
+      </div>
+    </div>
+  );
+}
+
 // ---------- App ----------
 type View = "home" | "daily" | "result" | "free" | "stats" | "board";
 
 export default function ParteiCheck() {
   const date = todayKey();
   const puzzleNo = puzzleNumber(date);
-  const daily = useMemo(() => pickDaily(date), [date]);
+  const dailyQuotes = useMemo(() => pickDailyQuotes(date), [date]);
+  const dailyPoliticians = useMemo(() => pickDailyPoliticians(date), [date]);
+
   const [view, setView] = useState<View>("home");
-  const [state, setState] = useState<DailyState>(() => loadDaily(date));
-  const [stats, setStats] = useState<Stats>(() => loadStats());
+  const [mode, setMode] = useState<Mode>("quotes");
+  const [stateQ, setStateQ] = useState<DailyState>(() => loadDaily("quotes", date));
+  const [stateP, setStateP] = useState<DailyState>(() => loadDaily("politicians", date));
   const [name, setName] = useState<string>(() => localStorage.getItem(LS_NAME) || "");
   const countdown = useCountdown();
 
-  // free play state
+  // free play
   const [freeIdx, setFreeIdx] = useState(0);
   const [freeGuess, setFreeGuess] = useState<PartyId | null>(null);
-  const freePool = useMemo(() => seededShuffle(QUOTES, "free-" + Math.random()).slice(0, 10), [view === "free" ? 1 : 0]);
+  const freeQuotes = useMemo(() => seededShuffle(QUOTES, "free-q-" + Math.random()).slice(0, 10), [view === "free" && mode === "quotes" ? 1 : 0]);
+  const freePoliticians = useMemo(() => seededShuffle(POLITICIANS, "free-p-" + Math.random()).slice(0, 10), [view === "free" && mode === "politicians" ? 1 : 0]);
 
   useEffect(() => { try { localStorage.setItem(LS_NAME, name); } catch {} }, [name]);
 
+  // Helpers bound to current mode
+  const isQuoteMode = mode === "quotes";
+  const dailyList: { party: PartyId; topic?: string }[] = isQuoteMode ? dailyQuotes : dailyPoliticians;
+  const state = isQuoteMode ? stateQ : stateP;
+  const setState = isQuoteMode ? setStateQ : setStateP;
   const currentIdx = state.guesses.length;
-  const currentQuote = daily[currentIdx];
-  const score = state.guesses.reduce((acc, g, i) => acc + (g === daily[i].party ? 1 : 0), 0);
+  const score = state.guesses.reduce((acc, g, i) => acc + (g === dailyList[i].party ? 1 : 0), 0);
 
   function submitDailyGuess(p: PartyId) {
     if (state.finished) return;
     const next: DailyState = { ...state, guesses: [...state.guesses, p] };
-    if (next.guesses.length >= daily.length) {
+    if (next.guesses.length >= dailyList.length) {
       next.finished = true;
-      const correctNow = next.guesses.reduce((a, g, i) => a + (g === daily[i].party ? 1 : 0), 0);
-      // update stats once
-      const s = { ...stats };
+      const correctNow = next.guesses.reduce((a, g, i) => a + (g === dailyList[i].party ? 1 : 0), 0);
+      const s = loadStats(mode);
       s.played += 1;
       s.correct += correctNow;
-      s.total += daily.length;
-      if (correctNow === daily.length) s.wins += 1;
+      s.total += dailyList.length;
+      if (correctNow === dailyList.length) s.wins += 1;
       const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
       const yKey = todayKey(yesterday);
       s.streak = s.lastDate === yKey || s.lastDate === date ? s.streak + (s.lastDate === date ? 0 : 1) : 1;
       s.maxStreak = Math.max(s.maxStreak, s.streak);
       s.lastDate = date;
-      setStats(s); saveStats(s);
-      // board
+      saveStats(mode, s);
       if (name.trim()) {
-        const b = loadBoard();
+        const b = loadBoard(mode);
         b.push({ name: name.trim(), score: correctNow, date, puzzle: puzzleNo });
-        saveBoard(b);
+        saveBoard(mode, b);
       }
     }
-    setState(next); saveDaily(next);
+    setState(next); saveDaily(mode, next);
     if (next.finished) setTimeout(() => setView("result"), 250);
   }
 
   function shareText() {
-    const grid = state.guesses.map((g, i) => g === daily[i].party ? "🟩" : "🟥").join("");
-    return `ParteiCheck #${puzzleNo}  ${score}/${daily.length}\n${grid}\nparteicheck.de`;
+    const grid = state.guesses.map((g, i) => g === dailyList[i].party ? "🟩" : "🟥").join("");
+    const label = isQuoteMode ? "Zitate" : "Politiker";
+    return `ParteiCheck ${label} #${puzzleNo}  ${score}/${dailyList.length}\n${grid}\nparteicheck.de`;
   }
   async function doShare() {
     const txt = shareText();
@@ -213,14 +341,11 @@ export default function ParteiCheck() {
     try { await navigator.clipboard.writeText(txt); alert("Ergebnis kopiert!"); } catch { alert(txt); }
   }
   function shareWhatsApp() {
-    const url = `https://wa.me/?text=${encodeURIComponent(shareText())}`;
-    window.open(url, "_blank");
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText())}`, "_blank");
   }
 
   // ---------- styles ----------
-  const C = {
-    bg: "#F5F1E8", ink: "#0A0A0A", paper: "#FFFDF7", muted: "#6B6457", line: "#0A0A0A",
-  };
+  const C = { bg: "#F5F1E8", ink: "#0A0A0A", paper: "#FFFDF7", muted: "#6B6457", line: "#0A0A0A" };
   const wrap: React.CSSProperties = { minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'Fraunces', Georgia, serif", padding: "24px 16px" };
   const container: React.CSSProperties = { maxWidth: 640, margin: "0 auto" };
   const card: React.CSSProperties = { background: C.paper, border: `2px solid ${C.line}`, boxShadow: `6px 6px 0 ${C.line}`, padding: 24, marginBottom: 16 };
@@ -228,6 +353,45 @@ export default function ParteiCheck() {
   const btnGhost: React.CSSProperties = { ...btn, background: "transparent", color: C.ink };
   const mono: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: C.muted };
   const h1: React.CSSProperties = { fontSize: 44, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1, margin: 0 };
+
+  function ModeCard({ m, badge }: { m: Mode; badge?: string }) {
+    const ms = m === "quotes" ? stateQ : stateP;
+    const list = m === "quotes" ? dailyQuotes : dailyPoliticians;
+    const sc = ms.guesses.reduce((a, g, i) => a + (g === list[i].party ? 1 : 0), 0);
+    const title = m === "quotes" ? "Zitate-Quiz" : "Politiker-Quiz";
+    const subtitle = m === "quotes"
+      ? "Welche Partei sagt was?"
+      : "Welche Partei ist welche:r Abgeordnete?";
+    return (
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <div style={mono}>{title}{badge ? ` · ${badge}` : ""}</div>
+          <div style={mono}>Nr. {puzzleNo}</div>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, margin: "8px 0 6px", lineHeight: 1.2 }}>
+          {ms.finished ? `${sc}/${list.length} richtig` : subtitle}
+        </div>
+        <div style={{ ...mono, marginBottom: 12 }}>5 Fragen · eine Chance pro Tag</div>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${DAILY_LENGTH}, 1fr)`, gap: 6, marginBottom: 16 }}>
+          {list.map((_, i) => {
+            const done = i < ms.guesses.length;
+            const ok = done && ms.guesses[i] === list[i].party;
+            return <div key={i} style={{ height: 32, border: `2px solid ${C.line}`, background: done ? (ok ? "#1AA037" : "#E3000F") : C.paper }} />;
+          })}
+        </div>
+        {!ms.finished ? (
+          <button style={{ ...btn, width: "100%" }} onClick={() => { setMode(m); setView("daily"); }}>
+            {ms.guesses.length === 0 ? "Starten" : "Weiterspielen"}
+          </button>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <button style={btn} onClick={() => { setMode(m); setView("result"); }}>Ergebnis</button>
+            <button style={btnGhost} onClick={() => { setMode(m); setFreeIdx(0); setFreeGuess(null); setView("free"); }}>Frei spielen</button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // ---------- HOME ----------
   if (view === "home") {
@@ -241,31 +405,11 @@ export default function ParteiCheck() {
           <h1 style={h1}>ParteiCheck</h1>
           <div style={{ ...mono, marginTop: 8, marginBottom: 24 }}>Wordle für die deutsche Politik</div>
 
-          <div style={card}>
-            <div style={mono}>Heutiges Rätsel · Nr. {puzzleNo}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, margin: "8px 0 16px", lineHeight: 1.2 }}>
-              {state.finished ? `Du hast heute ${score}/${daily.length} richtig.` : "5 Zitate. Eine Chance pro Tag."}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${DAILY_LENGTH}, 1fr)`, gap: 6, marginBottom: 16 }}>
-              {daily.map((_, i) => {
-                const done = i < state.guesses.length;
-                const ok = done && state.guesses[i] === daily[i].party;
-                return <div key={i} style={{ height: 36, border: `2px solid ${C.line}`, background: done ? (ok ? "#1AA037" : "#E3000F") : C.paper }} />;
-              })}
-            </div>
-            {!state.finished ? (
-              <button style={{ ...btn, width: "100%" }} onClick={() => setView("daily")}>
-                {state.guesses.length === 0 ? "Tägliches Rätsel starten" : "Weiterspielen"}
-              </button>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <button style={btn} onClick={() => setView("result")}>Ergebnis ansehen</button>
-                <button style={btnGhost} onClick={() => setView("free")}>Frei weiterspielen</button>
-              </div>
-            )}
-            <div style={{ ...mono, marginTop: 16, textAlign: "center" }}>
-              Nächstes Rätsel in <span style={{ color: C.ink, fontWeight: 700 }}>{countdown}</span>
-            </div>
+          <ModeCard m="quotes" />
+          <ModeCard m="politicians" badge="NEU" />
+
+          <div style={{ ...mono, textAlign: "center", marginBottom: 16 }}>
+            Nächste Rätsel in <span style={{ color: C.ink, fontWeight: 700 }}>{countdown}</span>
           </div>
 
           <div style={card}>
@@ -283,51 +427,56 @@ export default function ParteiCheck() {
             <button style={btnGhost} onClick={() => setView("board")}>Leaderboard</button>
           </div>
 
-          <div style={{ ...mono, marginTop: 24, textAlign: "center", lineHeight: 1.5 }}>
+          <div style={{ ...mono, marginTop: 24, textAlign: "center", lineHeight: 1.7 }}>
             Zitate basieren auf dokumentierten Positionen aus den<br />Wahlprogrammen 2025. Hackathon-Prototyp.
+            <br />Fotos: Wikimedia Commons (CC-BY-SA)
           </div>
         </div>
       </div>
     );
   }
 
-  // ---------- DAILY ----------
-  if (view === "daily" && currentQuote) {
-    const q = currentQuote;
+  // ---------- DAILY (quotes) ----------
+  if (view === "daily" && isQuoteMode && currentIdx < dailyQuotes.length) {
+    const q = dailyQuotes[currentIdx];
     return (
       <div style={wrap}>
         <div style={container}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
             <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 11 }} onClick={() => setView("home")}>← Zurück</button>
-            <div style={mono}>Rätsel #{puzzleNo} · {currentIdx + 1}/{daily.length}</div>
+            <div style={mono}>Zitate #{puzzleNo} · {currentIdx + 1}/{dailyQuotes.length}</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${DAILY_LENGTH}, 1fr)`, gap: 6, marginBottom: 16 }}>
-            {daily.map((_, i) => {
-              const done = i < state.guesses.length;
-              const ok = done && state.guesses[i] === daily[i].party;
-              const cur = i === currentIdx;
-              return <div key={i} style={{ height: 8, border: `2px solid ${C.line}`, background: done ? (ok ? "#1AA037" : "#E3000F") : (cur ? C.ink : C.paper) }} />;
-            })}
-          </div>
+          <ProgressBar list={dailyQuotes} guesses={state.guesses} cur={currentIdx} C={C} />
           <div style={card}>
             <div style={mono}>Thema · {q.topic}</div>
             <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.3, margin: "16px 0", fontStyle: "italic" }}>
               „{q.text}"
             </div>
             <div style={{ ...mono, marginBottom: 16 }}>Welche Partei?</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {(Object.keys(PARTIES) as PartyId[]).map((pid) => {
-                const p = PARTIES[pid];
-                return (
-                  <button key={pid} onClick={() => submitDailyGuess(pid)}
-                    style={{ background: p.color, color: p.fg, border: `2px solid ${C.line}`, padding: "14px 12px",
-                             fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, fontSize: 14, cursor: "pointer",
-                             letterSpacing: "0.05em" }}>
-                    {p.name}
-                  </button>
-                );
-              })}
+            <PartyButtons onPick={submitDailyGuess} C={C} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- DAILY (politicians) ----------
+  if (view === "daily" && !isQuoteMode && currentIdx < dailyPoliticians.length) {
+    const p = dailyPoliticians[currentIdx];
+    return (
+      <div style={wrap}>
+        <div style={container}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 11 }} onClick={() => setView("home")}>← Zurück</button>
+            <div style={mono}>Politiker #{puzzleNo} · {currentIdx + 1}/{dailyPoliticians.length}</div>
+          </div>
+          <ProgressBar list={dailyPoliticians} guesses={state.guesses} cur={currentIdx} C={C} />
+          <div style={card}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+              <Avatar politician={p} size={240} hideName />
             </div>
+            <div style={{ ...mono, marginBottom: 16, textAlign: "center" }}>Welche Partei?</div>
+            <PartyButtons onPick={submitDailyGuess} C={C} />
           </div>
         </div>
       </div>
@@ -336,12 +485,13 @@ export default function ParteiCheck() {
 
   // ---------- RESULT ----------
   if (view === "result") {
-    const grid = state.guesses.map((g, i) => g === daily[i].party ? "🟩" : "🟥").join("");
+    const grid = state.guesses.map((g, i) => g === dailyList[i].party ? "🟩" : "🟥").join("");
+    const label = isQuoteMode ? "Zitate" : "Politiker";
     return (
       <div style={wrap}>
         <div style={container}>
-          <div style={mono}>Rätsel #{puzzleNo}</div>
-          <h1 style={{ ...h1, margin: "8px 0 24px" }}>{score}/{daily.length}</h1>
+          <div style={mono}>{label} · Rätsel #{puzzleNo}</div>
+          <h1 style={{ ...h1, margin: "8px 0 24px" }}>{score}/{dailyList.length}</h1>
           <div style={card}>
             <div style={{ fontSize: 48, textAlign: "center", letterSpacing: "0.1em", marginBottom: 16 }}>{grid}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
@@ -355,27 +505,46 @@ export default function ParteiCheck() {
 
           <div style={card}>
             <div style={mono}>Auflösung</div>
-            {daily.map((q, i) => {
-              const guess = state.guesses[i];
-              const ok = guess === q.party;
-              const gp = PARTIES[guess], rp = PARTIES[q.party];
-              return (
-                <div key={q.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
-                  <div style={mono}>Frage {i + 1} · {q.topic}</div>
-                  <div style={{ fontStyle: "italic", margin: "6px 0", lineHeight: 1.4 }}>„{q.text}"</div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
-                    <span style={{ background: gp.color, color: gp.fg, padding: "2px 6px", textDecoration: ok ? "none" : "line-through" }}>Du: {gp.name}</span>
-                    {!ok && <span style={{ background: rp.color, color: rp.fg, padding: "2px 6px" }}>Richtig: {rp.name}</span>}
-                    {ok && <span>✓</span>}
-                  </div>
-                  <div style={{ fontSize: 13, marginTop: 8, color: C.muted, lineHeight: 1.5 }}>{q.context}</div>
-                </div>
-              );
-            })}
+            {isQuoteMode
+              ? dailyQuotes.map((q, i) => {
+                  const guess = state.guesses[i];
+                  const ok = guess === q.party;
+                  const gp = PARTIES[guess], rp = PARTIES[q.party];
+                  return (
+                    <div key={q.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
+                      <div style={mono}>Frage {i + 1} · {q.topic}</div>
+                      <div style={{ fontStyle: "italic", margin: "6px 0", lineHeight: 1.4 }}>„{q.text}"</div>
+                      <GuessRow ok={ok} gp={gp} rp={rp} />
+                      <div style={{ fontSize: 13, marginTop: 8, color: C.muted, lineHeight: 1.5 }}>{q.context}</div>
+                    </div>
+                  );
+                })
+              : dailyPoliticians.map((p, i) => {
+                  const guess = state.guesses[i];
+                  const ok = guess === p.party;
+                  const gp = PARTIES[guess], rp = PARTIES[p.party];
+                  return (
+                    <div key={p.id} style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 12 }}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                        <Avatar politician={p} size={72} hideName={false} />
+                        <div style={{ flex: 1 }}>
+                          <div style={mono}>Frage {i + 1}</div>
+                          <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2, marginTop: 4 }}>{p.name}</div>
+                          <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{p.role}</div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 10 }}><GuessRow ok={ok} gp={gp} rp={rp} /></div>
+                      <div style={{ fontSize: 13, marginTop: 8, color: C.muted, lineHeight: 1.5 }}>
+                        <b style={{ color: C.ink, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em" }}>Bekannt für · </b>{p.knownFor}
+                      </div>
+                    </div>
+                  );
+                })
+            }
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <button style={btn} onClick={() => setView("free")}>Frei weiterspielen</button>
+            <button style={btn} onClick={() => { setFreeIdx(0); setFreeGuess(null); setView("free"); }}>Frei weiterspielen</button>
             <button style={btnGhost} onClick={() => setView("home")}>Startseite</button>
           </div>
         </div>
@@ -385,14 +554,15 @@ export default function ParteiCheck() {
 
   // ---------- FREE PLAY ----------
   if (view === "free") {
-    const q = freePool[freeIdx];
-    if (!q) {
+    const pool = isQuoteMode ? freeQuotes : freePoliticians;
+    const item = pool[freeIdx];
+    if (!item) {
       return (
         <div style={wrap}><div style={container}>
           <div style={card}>
             <h1 style={h1}>Runde fertig</h1>
-            <div style={{ marginTop: 16 }}>
-              <button style={btn} onClick={() => { setFreeIdx(0); setFreeGuess(null); }}>Noch eine Runde</button>{" "}
+            <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+              <button style={btn} onClick={() => { setFreeIdx(0); setFreeGuess(null); setView(view); }}>Noch eine Runde</button>
               <button style={btnGhost} onClick={() => setView("home")}>Startseite</button>
             </div>
           </div>
@@ -403,28 +573,32 @@ export default function ParteiCheck() {
       <div style={wrap}><div style={container}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
           <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 11 }} onClick={() => setView("home")}>← Zurück</button>
-          <div style={mono}>Frei spielen · {freeIdx + 1}/10</div>
+          <div style={mono}>Frei · {MODE_LABEL[mode]} · {freeIdx + 1}/{pool.length}</div>
         </div>
         <div style={card}>
-          <div style={mono}>Thema · {q.topic}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.3, margin: "16px 0", fontStyle: "italic" }}>„{q.text}"</div>
-          {!freeGuess ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {(Object.keys(PARTIES) as PartyId[]).map((pid) => {
-                const p = PARTIES[pid];
-                return <button key={pid} onClick={() => setFreeGuess(pid)}
-                  style={{ background: p.color, color: p.fg, border: `2px solid ${C.line}`, padding: "14px 12px",
-                           fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
-                  {p.name}
-                </button>;
-              })}
+          {isQuoteMode ? (
+            <>
+              <div style={mono}>Thema · {(item as Quote).topic}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.3, margin: "16px 0", fontStyle: "italic" }}>„{(item as Quote).text}"</div>
+            </>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+              <Avatar politician={item as Politician} size={200} hideName={!freeGuess} />
             </div>
+          )}
+          {!freeGuess ? (
+            <PartyButtons onPick={(p) => setFreeGuess(p)} C={C} />
           ) : (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-                {freeGuess === q.party ? "Richtig ✓" : `Falsch — es war ${PARTIES[q.party].name}`}
+                {freeGuess === item.party ? "Richtig ✓" : `Falsch — es war ${PARTIES[item.party].name}`}
               </div>
-              <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.5, marginBottom: 16 }}>{q.context}</div>
+              {!isQuoteMode && (
+                <div style={{ fontSize: 16, fontWeight: 700, margin: "4px 0" }}>{(item as Politician).name}</div>
+              )}
+              <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.5, marginBottom: 16 }}>
+                {isQuoteMode ? (item as Quote).context : (item as Politician).knownFor}
+              </div>
               <button style={btn} onClick={() => { setFreeGuess(null); setFreeIdx(freeIdx + 1); }}>Nächste Frage →</button>
             </div>
           )}
@@ -435,44 +609,31 @@ export default function ParteiCheck() {
 
   // ---------- STATS ----------
   if (view === "stats") {
-    const winPct = stats.played ? Math.round((stats.wins / stats.played) * 100) : 0;
-    const accuracy = stats.total ? Math.round((stats.correct / stats.total) * 100) : 0;
-    const stat = (label: string, v: string | number) => (
-      <div style={{ textAlign: "center", flex: 1 }}>
-        <div style={{ fontSize: 36, fontWeight: 900 }}>{v}</div>
-        <div style={mono}>{label}</div>
-      </div>
-    );
     return (
       <div style={wrap}><div style={container}>
         <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 11, marginBottom: 16 }} onClick={() => setView("home")}>← Zurück</button>
         <h1 style={h1}>Statistik</h1>
-        <div style={{ ...card, marginTop: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            {stat("Gespielt", stats.played)}
-            {stat("Treffer %", accuracy + "%")}
-            {stat("Streak", stats.streak)}
-            {stat("Max", stats.maxStreak)}
-          </div>
+        <div style={{ display: "flex", gap: 8, margin: "16px 0" }}>
+          <button style={{ ...btn, flex: 1, background: mode === "quotes" ? C.ink : "transparent", color: mode === "quotes" ? "#fff" : C.ink }} onClick={() => setMode("quotes")}>Zitate</button>
+          <button style={{ ...btn, flex: 1, background: mode === "politicians" ? C.ink : "transparent", color: mode === "politicians" ? "#fff" : C.ink }} onClick={() => setMode("politicians")}>Politiker</button>
         </div>
-        <div style={{ ...mono, textAlign: "center" }}>
-          {stats.wins} perfekte Runden · {stats.correct}/{stats.total} Zitate richtig zugeordnet
-        </div>
+        <StatsCard mode={mode} C={C} card={card} mono={mono} />
       </div></div>
     );
   }
 
   // ---------- LEADERBOARD ----------
   if (view === "board") {
-    const board = loadBoard()
-      .filter(e => e.date === date)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
+    const board = loadBoard(mode).filter(e => e.date === date).sort((a, b) => b.score - a.score).slice(0, 20);
     return (
       <div style={wrap}><div style={container}>
         <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 11, marginBottom: 16 }} onClick={() => setView("home")}>← Zurück</button>
         <h1 style={h1}>Leaderboard</h1>
-        <div style={{ ...mono, marginTop: 8, marginBottom: 16 }}>Heute · Rätsel #{puzzleNo}</div>
+        <div style={{ ...mono, marginTop: 8, marginBottom: 16 }}>Heute · {MODE_LABEL[mode]} · Rätsel #{puzzleNo}</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <button style={{ ...btn, flex: 1, background: mode === "quotes" ? C.ink : "transparent", color: mode === "quotes" ? "#fff" : C.ink }} onClick={() => setMode("quotes")}>Zitate</button>
+          <button style={{ ...btn, flex: 1, background: mode === "politicians" ? C.ink : "transparent", color: mode === "politicians" ? "#fff" : C.ink }} onClick={() => setMode("politicians")}>Politiker</button>
+        </div>
         <div style={card}>
           {board.length === 0 ? (
             <div style={{ ...mono, textAlign: "center", padding: 16 }}>Noch keine Einträge heute.</div>
@@ -490,4 +651,72 @@ export default function ParteiCheck() {
   }
 
   return null;
+}
+
+// ---------- Small subcomponents ----------
+function ProgressBar({ list, guesses, cur, C }: { list: { party: PartyId }[]; guesses: PartyId[]; cur: number; C: any }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${DAILY_LENGTH}, 1fr)`, gap: 6, marginBottom: 16 }}>
+      {list.map((_, i) => {
+        const done = i < guesses.length;
+        const ok = done && guesses[i] === list[i].party;
+        const isCur = i === cur;
+        return <div key={i} style={{ height: 8, border: `2px solid ${C.line}`, background: done ? (ok ? "#1AA037" : "#E3000F") : (isCur ? C.ink : C.paper) }} />;
+      })}
+    </div>
+  );
+}
+
+function PartyButtons({ onPick, C }: { onPick: (p: PartyId) => void; C: any }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      {(Object.keys(PARTIES) as PartyId[]).map((pid) => {
+        const p = PARTIES[pid];
+        return (
+          <button key={pid} onClick={() => onPick(pid)}
+            style={{ background: p.color, color: p.fg, border: `2px solid ${C.line}`,
+                     padding: "14px 12px", fontFamily: "'JetBrains Mono', monospace",
+                     fontWeight: 800, fontSize: 14, cursor: "pointer", letterSpacing: "0.05em" }}>
+            {p.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function GuessRow({ ok, gp, rp }: { ok: boolean; gp: { name: string; color: string; fg: string }; rp: { name: string; color: string; fg: string } }) {
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
+      <span style={{ background: gp.color, color: gp.fg, padding: "2px 6px", textDecoration: ok ? "none" : "line-through" }}>Du: {gp.name}</span>
+      {!ok && <span style={{ background: rp.color, color: rp.fg, padding: "2px 6px" }}>Richtig: {rp.name}</span>}
+      {ok && <span>✓</span>}
+    </div>
+  );
+}
+
+function StatsCard({ mode, C, card, mono }: { mode: Mode; C: any; card: React.CSSProperties; mono: React.CSSProperties }) {
+  const stats = loadStats(mode);
+  const accuracy = stats.total ? Math.round((stats.correct / stats.total) * 100) : 0;
+  const stat = (label: string, v: string | number) => (
+    <div style={{ textAlign: "center", flex: 1 }}>
+      <div style={{ fontSize: 36, fontWeight: 900 }}>{v}</div>
+      <div style={mono}>{label}</div>
+    </div>
+  );
+  return (
+    <>
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          {stat("Gespielt", stats.played)}
+          {stat("Treffer %", accuracy + "%")}
+          {stat("Streak", stats.streak)}
+          {stat("Max", stats.maxStreak)}
+        </div>
+      </div>
+      <div style={{ ...mono, textAlign: "center" }}>
+        {stats.wins} perfekte Runden · {stats.correct}/{stats.total} richtig
+      </div>
+    </>
+  );
 }
