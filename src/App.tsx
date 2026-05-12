@@ -324,6 +324,12 @@ export default function ClaimGame() {
         const b = loadBoard(mode);
         b.push({ name: name.trim(), score: correctNow, date, puzzle: puzzleNo });
         saveBoard(mode, b);
+        // Fire-and-forget to live backend; local copy stays as fallback.
+        fetch("/api/scores", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim(), mode, score: correctNow, puzzle: puzzleNo, date }),
+        }).catch(() => {});
       }
     }
     setState(next); saveDaily(mode, next);
@@ -624,29 +630,12 @@ export default function ClaimGame() {
 
   // ---------- LEADERBOARD ----------
   if (view === "board") {
-    const board = loadBoard(mode).filter(e => e.date === date).sort((a, b) => b.score - a.score).slice(0, 20);
     return (
-      <div style={wrap}><div style={container}>
-        <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 11, marginBottom: 16 }} onClick={() => setView("home")}>← Zurück</button>
-        <h1 style={h1}>Leaderboard</h1>
-        <div style={{ ...mono, marginTop: 8, marginBottom: 16 }}>Heute · {MODE_LABEL[mode]} · Rätsel #{puzzleNo}</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <button style={{ ...btn, flex: 1, background: mode === "quotes" ? C.ink : "transparent", color: mode === "quotes" ? "#fff" : C.ink }} onClick={() => setMode("quotes")}>Zitate</button>
-          <button style={{ ...btn, flex: 1, background: mode === "politicians" ? C.ink : "transparent", color: mode === "politicians" ? "#fff" : C.ink }} onClick={() => setMode("politicians")}>Politiker</button>
-        </div>
-        <div style={card}>
-          {board.length === 0 ? (
-            <div style={{ ...mono, textAlign: "center", padding: 16 }}>Noch keine Einträge heute.</div>
-          ) : board.map((e, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0",
-                                  borderTop: i === 0 ? "none" : `1px solid ${C.line}`,
-                                  fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>
-              <span><b style={{ marginRight: 12 }}>#{i + 1}</b>{e.name}</span>
-              <span style={{ fontWeight: 800 }}>{e.score}/{DAILY_LENGTH}</span>
-            </div>
-          ))}
-        </div>
-      </div></div>
+      <LiveBoard
+        mode={mode} setMode={setMode} date={date} puzzleNo={puzzleNo}
+        name={name} C={C} card={card} mono={mono} btn={btn} btnGhost={btnGhost} h1={h1}
+        onBack={() => setView("home")}
+      />
     );
   }
 
@@ -718,5 +707,100 @@ function StatsCard({ mode, C, card, mono }: { mode: Mode; C: any; card: React.CS
         {stats.wins} perfekte Runden · {stats.correct}/{stats.total} richtig
       </div>
     </>
+  );
+}
+
+type LiveRow = { name: string; score: number; attempts: number; first_played: string };
+type LiveTotals = { mode: Mode; plays: number; players: number };
+type LiveResp = { date: string; mode: Mode; rows: LiveRow[]; totals: LiveTotals[] };
+
+function LiveBoard({ mode, setMode, date, puzzleNo, name, C, card, mono, btn, btnGhost, h1, onBack }: {
+  mode: Mode; setMode: (m: Mode) => void; date: string; puzzleNo: number; name: string;
+  C: any; card: React.CSSProperties; mono: React.CSSProperties;
+  btn: React.CSSProperties; btnGhost: React.CSSProperties; h1: React.CSSProperties;
+  onBack: () => void;
+}) {
+  const [data, setData] = useState<LiveResp | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    async function tick() {
+      try {
+        const r = await fetch(`/api/scores?mode=${mode}&date=${date}`, { cache: "no-store" });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j: LiveResp = await r.json();
+        if (alive) { setData(j); setErr(null); setLastUpdated(new Date()); }
+      } catch (e: any) {
+        if (alive) setErr(e?.message || "Verbindung fehlgeschlagen");
+      }
+    }
+    tick();
+    const id = setInterval(tick, 4000);
+    return () => { alive = false; clearInterval(id); };
+  }, [mode, date]);
+
+  const rows = data?.rows ?? [];
+  const totalForMode = data?.totals?.find(t => t.mode === mode);
+  const youAreOnBoard = name && rows.some(r => r.name.toLowerCase() === name.trim().toLowerCase());
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'Fraunces', Georgia, serif", padding: "24px 16px" }}>
+      <div style={{ maxWidth: 640, margin: "0 auto" }}>
+        <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 11, marginBottom: 16 }} onClick={onBack}>← Zurück</button>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+          <h1 style={h1}>Leaderboard</h1>
+          <span style={{ ...mono, color: "#1AA037", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1AA037", display: "inline-block", animation: "pulse 1.4s ease-in-out infinite" }} />
+            LIVE
+          </span>
+        </div>
+        <style>{`@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.3 } }`}</style>
+        <div style={{ ...mono, marginTop: 8, marginBottom: 16 }}>
+          Heute · {MODE_LABEL[mode]} · Rätsel #{puzzleNo}
+          {totalForMode && <> · {totalForMode.players} Spieler:innen · {totalForMode.plays} Runden</>}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <button style={{ ...btn, flex: 1, background: mode === "quotes" ? C.ink : "transparent", color: mode === "quotes" ? "#fff" : C.ink }} onClick={() => setMode("quotes")}>Zitate</button>
+          <button style={{ ...btn, flex: 1, background: mode === "politicians" ? C.ink : "transparent", color: mode === "politicians" ? "#fff" : C.ink }} onClick={() => setMode("politicians")}>Politiker</button>
+        </div>
+        <div style={card}>
+          {!data && !err && <div style={{ ...mono, textAlign: "center", padding: 16 }}>Lade …</div>}
+          {err && <div style={{ ...mono, textAlign: "center", padding: 16, color: "#E3000F" }}>Fehler: {err}</div>}
+          {data && rows.length === 0 && <div style={{ ...mono, textAlign: "center", padding: 16 }}>Noch keine Einträge heute. Sei die erste Person!</div>}
+          {rows.map((e, i) => {
+            const isMe = name && e.name.toLowerCase() === name.trim().toLowerCase();
+            return (
+              <div key={`${e.name}-${i}`} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 8px",
+                borderTop: i === 0 ? "none" : `1px solid ${C.line}`,
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 14,
+                background: isMe ? "#FFED00" : "transparent",
+                margin: isMe ? "0 -8px" : 0,
+                fontWeight: i < 3 ? 800 : 500,
+              }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <b style={{ minWidth: 28, display: "inline-block" }}>#{i + 1}</b>
+                  <span>{e.name}{isMe ? " · Du" : ""}</span>
+                  {e.attempts > 1 && <span style={{ ...mono, opacity: 0.6 }}>({e.attempts}×)</span>}
+                </span>
+                <span style={{ fontWeight: 800 }}>{e.score}/{DAILY_LENGTH}</span>
+              </div>
+            );
+          })}
+        </div>
+        {!youAreOnBoard && name && data && (
+          <div style={{ ...mono, textAlign: "center", marginTop: 8 }}>
+            Spiele heute, um dich zu platzieren ({name}).
+          </div>
+        )}
+        {lastUpdated && (
+          <div style={{ ...mono, textAlign: "center", marginTop: 16, opacity: 0.6 }}>
+            Aktualisiert {lastUpdated.toLocaleTimeString("de-DE")}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
