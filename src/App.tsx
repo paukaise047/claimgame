@@ -190,10 +190,10 @@ function seededShuffle<T>(arr: T[], seedStr: string): T[] {
   return a;
 }
 function pickDailyQuotes(dateStr: string): Quote[] {
-  return seededShuffle(QUOTES, "parteicheck-quotes-" + dateStr).slice(0, DAILY_LENGTH);
+  return seededShuffle(QUOTES, "claimgame-quotes-" + dateStr).slice(0, DAILY_LENGTH);
 }
 function pickDailyPoliticians(dateStr: string): Politician[] {
-  return seededShuffle(POLITICIANS, "parteicheck-politicians-" + dateStr).slice(0, DAILY_LENGTH);
+  return seededShuffle(POLITICIANS, "claimgame-politicians-" + dateStr).slice(0, DAILY_LENGTH);
 }
 
 // ---------- Storage (mode-aware) ----------
@@ -201,10 +201,10 @@ type DailyState = { date: string; guesses: PartyId[]; finished: boolean };
 type Stats = { played: number; wins: number; correct: number; total: number; streak: number; maxStreak: number; lastDate: string | null };
 type BoardEntry = { name: string; score: number; date: string; puzzle: number };
 
-const LS_NAME = "parteicheck.name.v1";
-const dailyKey = (m: Mode) => `parteicheck.daily.${m}.v1`;
-const statsKey = (m: Mode) => `parteicheck.stats.${m}.v1`;
-const boardKey = (m: Mode) => `parteicheck.board.${m}.v1`;
+const LS_NAME = "claimgame.name.v1";
+const dailyKey = (m: Mode) => `claimgame.daily.${m}.v1`;
+const statsKey = (m: Mode) => `claimgame.stats.${m}.v1`;
+const boardKey = (m: Mode) => `claimgame.board.${m}.v1`;
 
 function loadDaily(mode: Mode, date: string): DailyState {
   try {
@@ -274,7 +274,7 @@ function Avatar({ politician, size = 220, hideName = true }: { politician: Polit
 // ---------- App ----------
 type View = "home" | "daily" | "result" | "free" | "stats" | "board";
 
-export default function ParteiCheck() {
+export default function ClaimGame() {
   const date = todayKey();
   const puzzleNo = puzzleNumber(date);
   const dailyQuotes = useMemo(() => pickDailyQuotes(date), [date]);
@@ -333,7 +333,7 @@ export default function ParteiCheck() {
   function shareText() {
     const grid = state.guesses.map((g, i) => g === dailyList[i].party ? "🟩" : "🟥").join("");
     const label = isQuoteMode ? "Zitate" : "Politiker";
-    return `ParteiCheck ${label} #${puzzleNo}  ${score}/${dailyList.length}\n${grid}\nparteicheck.de`;
+    return `ClaimGame ${label} #${puzzleNo}  ${score}/${dailyList.length}\n${grid}\n#claimgame`;
   }
   async function doShare() {
     const txt = shareText();
@@ -402,8 +402,8 @@ export default function ParteiCheck() {
             <div style={mono}>Bundestagswahl · Quiz</div>
             <div style={mono}>{date}</div>
           </div>
-          <h1 style={h1}>ParteiCheck</h1>
-          <div style={{ ...mono, marginTop: 8, marginBottom: 24 }}>Wordle für die deutsche Politik</div>
+          <h1 style={h1}>ClaimGame</h1>
+          <div style={{ ...mono, marginTop: 8, marginBottom: 24 }}>Politics. Guess it. Get it.</div>
 
           <ModeCard m="quotes" />
           <ModeCard m="politicians" badge="NEU" />
